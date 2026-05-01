@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pharma Raw Material Demand Predictor</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;background:#f0f4f8;color:#222}
+ 
+/* ── HEADER ── */
+header{background:linear-gradient(135deg,#0d3b6e,#185FA5);color:white;padding:20px 36px;display:flex;justify-content:space-between;align-items:center}
+header h1{font-size:20px;font-weight:700}
+header p{font-size:12px;opacity:.85;margin-top:3px}
+.header-stats{display:flex;gap:20px}
+.hstat{text-align:center}
+.hstat .num{font-size:18px;font-weight:700;color:#7EC8F8}
+.hstat .lbl{font-size:10px;opacity:.8}
+ 
+/* ── NAV ── */
+nav{background:#0d3b6e;display:flex;gap:0;padding:0 36px;overflow-x:auto}
+nav button{background:none;border:none;color:rgba(255,255,255,.65);padding:11px 18px;font-size:13px;font-weight:600;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;transition:all .2s}
+nav button:hover{color:white}
+nav button.active{color:white;border-bottom-color:#7EC8F8}
+ 
+/* ── LAYOUT ── */
+.container{max-width:1020px;margin:26px auto;padding:0 18px}
+.page{display:none}
+.page.active{display:block}
+ 
+/* ── CARDS ── */
+.card{background:white;border-radius:12px;padding:22px 26px;margin-bottom:18px;box-shadow:0 2px 8px rgba(0,0,0,.07)}
+.card h2{font-size:15px;font-weight:700;color:#185FA5;border-bottom:2px solid #e8edf2;padding-bottom:9px;margin-bottom:15px}
+.card-desc{font-size:12px;color:#777;margin-bottom:14px;line-height:1.6}
+ 
+/* ── KPI ROW ── */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:18px}
+.kpi{background:white;border-radius:10px;padding:16px 18px;box-shadow:0 2px 8px rgba(0,0,0,.07);border-left:4px solid #185FA5}
+.kpi.green{border-left-color:#1D9E75}
+.kpi.amber{border-left-color:#E8A020}
+.kpi.red{border-left-color:#E24B4A}
+.kpi.purple{border-left-color:#7F77DD}
+.kpi .kval{font-size:22px;font-weight:700;color:#185FA5}
+.kpi.green .kval{color:#1D9E75}
+.kpi.amber .kval{color:#E8A020}
+.kpi.red   .kval{color:#E24B4A}
+.kpi.purple .kval{color:#7F77DD}
+.kpi .klbl{font-size:11px;color:#888;margin-top:3px}
+ 
+/* ── INPUTS ── */
+.row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;position:relative}
+input[type=text]{flex:1;min-width:180px;padding:10px 14px;border:1.5px solid #ccc;border-radius:8px;font-size:14px;outline:none;transition:border .2s}
+input[type=text]:focus{border-color:#185FA5}
+.btn{padding:10px 22px;background:#185FA5;color:white;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .2s}
+.btn:hover{background:#0d3b6e}
+.btn:disabled{background:#aaa;cursor:not-allowed}
+.btn-green{background:#1D9E75}.btn-green:hover{background:#0F6E56}
+ 
+/* ── AUTOCOMPLETE ── */
+.ac-wrap{position:relative;flex:1;min-width:180px}
+#suggestions{position:absolute;top:100%;left:0;right:0;background:white;border:1px solid #ccc;border-top:none;border-radius:0 0 8px 8px;z-index:200;max-height:200px;overflow-y:auto;display:none;box-shadow:0 4px 12px rgba(0,0,0,.1)}
+#suggestions div{padding:9px 14px;font-size:13px;cursor:pointer}
+#suggestions div:hover{background:#f0f6ff;color:#185FA5}
+ 
+/* ── RESULT BOXES ── */
+.rbox{margin-top:12px;padding:12px 16px;border-radius:8px;font-size:13px;display:none}
+.rbox.success{background:#e6f4ee;color:#0F6E56;border-left:4px solid #1D9E75}
+.rbox.error  {background:#fce8e8;color:#A32D2D;border-left:4px solid #E24B4A}
+.rbox.warn   {background:#fef3cd;color:#7a5000;border-left:4px solid #E8A020}
+ 
+/* ── BADGES ── */
+.badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:700;margin-left:6px;vertical-align:middle}
+.bvh {background:#fce8e8;color:#7a0000}
+.bh  {background:#fce8e8;color:#A32D2D}
+.bm  {background:#FAEEDA;color:#854F0B}
+.bl  {background:#EAF3DE;color:#3B6D11}
+.bhr {background:#fce8e8;color:#A32D2D}
+.bmr {background:#FAEEDA;color:#854F0B}
+.blr {background:#EAF3DE;color:#3B6D11}
+ 
+/* ── PREDICTION RESULT CARD ── */
+.pred-card{background:#f7faff;border:1px solid #dde8f5;border-radius:10px;padding:16px 20px;margin-top:14px;display:none}
+.pred-main{font-size:26px;font-weight:700;color:#185FA5;margin-bottom:4px}
+.pred-sub{font-size:13px;color:#555;margin-bottom:12px}
+.pred-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin-bottom:12px}
+.pmeta{background:white;border-radius:8px;padding:10px 12px;border:1px solid #e8edf2}
+.pmeta .pval{font-size:15px;font-weight:700;color:#185FA5}
+.pmeta .plbl{font-size:10px;color:#888;margin-top:2px}
+.insights-list{margin-top:10px}
+.insight-item{font-size:12px;color:#444;padding:5px 0 5px 16px;border-bottom:1px solid #f0f0f0;position:relative;line-height:1.5}
+.insight-item::before{content:"→";position:absolute;left:0;color:#185FA5;font-weight:700}
+.insight-item:last-child{border-bottom:none}
+ 
+/* ── HISTORY ── */
+.hist-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px}
+.hist-row:last-child{border-bottom:none}
+.hist-chem{font-weight:600;color:#185FA5;cursor:pointer}
+.hist-chem:hover{text-decoration:underline}
+ 
+/* ── MEDICINE RESULT CARD ── */
+.med-card{background:#f7faff;border:1px solid #dde8f5;border-radius:10px;padding:16px 20px;margin-bottom:12px}
+.med-card h4{font-size:14px;font-weight:700;color:#0d3b6e;margin-bottom:2px}
+.med-card .mfr{font-size:12px;color:#888;margin-bottom:10px}
+.med-meta-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.mmeta{background:white;border:1px solid #e0e8f4;border-radius:6px;padding:4px 10px;font-size:11px}
+.mmeta span{font-weight:700;color:#185FA5}
+.disc-tag{background:#fce8e8;color:#A32D2D;padding:3px 8px;border-radius:12px;font-size:11px;font-weight:700}
+.ing-section h5{font-size:12px;font-weight:700;color:#444;margin-bottom:6px}
+.ing-list{display:flex;flex-wrap:wrap;gap:6px}
+.ing-chip{background:#E6F1FB;color:#0C447C;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:none;transition:all .15s}
+.ing-chip:hover{background:#185FA5;color:white}
+.ing-chip .strength{font-size:10px;opacity:.75;margin-left:4px}
+ 
+/* ── INGREDIENT LOOKUP ── */
+.info-strip{background:#E6F1FB;color:#0C447C;padding:7px 14px;border-radius:6px;font-size:12px;font-weight:600;margin-bottom:12px}
+.med-list-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.med-item{background:#f7faff;border:1px solid #dde8f5;border-radius:8px;padding:9px 12px;cursor:pointer;transition:all .15s}
+.med-item:hover{background:#E6F1FB;border-color:#7EC8F8}
+.med-item .mi-name{font-size:13px;font-weight:600;color:#0d3b6e}
+.med-item .mi-sub{font-size:11px;color:#888;margin-top:2px}
+.med-item .mi-price{font-size:12px;color:#1D9E75;font-weight:700;margin-top:3px}
+ 
+/* ── COMPARE ── */
+.cmp-grid{display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:center}
+.vs{font-size:20px;font-weight:700;color:#ccc;text-align:center}
+.cmp-result-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+.cmp-side{background:#f7faff;border:1px solid #dde8f5;border-radius:10px;padding:16px 18px}
+.cmp-side.winner{border-color:#1D9E75;background:#e6f4ee}
+.cmp-name{font-size:15px;font-weight:700;color:#0d3b6e;margin-bottom:4px}
+.cmp-score{font-size:28px;font-weight:700;color:#185FA5}
+.cmp-bar-track{background:#e8edf2;border-radius:6px;height:24px;margin:10px 0;overflow:hidden}
+.cmp-bar-fill{height:100%;border-radius:6px;display:flex;align-items:center;padding-left:10px;font-size:12px;font-weight:700;color:white;transition:width .7s ease}
+.winner-banner{text-align:center;margin-top:12px;font-size:13px;font-weight:700;color:#0F6E56;background:#e6f4ee;padding:8px;border-radius:8px}
+ 
+/* ── SHORTAGE RISK TABLE ── */
+.risk-table{width:100%;border-collapse:collapse;font-size:13px}
+.risk-table th{text-align:left;padding:9px 12px;background:#f0f4f8;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#555;font-weight:700}
+.risk-table td{padding:9px 12px;border-bottom:1px solid #f0f0f0}
+.risk-table tr:last-child td{border-bottom:none}
+.risk-table tr:hover td{background:#f7faff}
+ 
+/* ── CHARTS ── */
+.chart-wrap{position:relative;height:340px}
+.chart-wrap-sm{position:relative;height:260px}
+.charts-2col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+ 
+/* ── CONFIDENCE BAR ── */
+.conf-bar{background:#e8edf2;border-radius:4px;height:6px;margin-top:4px}
+.conf-fill{height:100%;border-radius:4px;background:#1D9E75}
+ 
+/* ── HINT ── */
+.hint{font-size:11px;color:#999;margin-top:8px}
+ 
+/* ── SPINNER ── */
+.spin{display:inline-block;width:13px;height:13px;border:2px solid #ccc;border-top-color:#185FA5;border-radius:50%;animation:sp .7s linear infinite;vertical-align:middle;margin-right:5px}
+@keyframes sp{to{transform:rotate(360deg)}}
+ 
+/* ── RESPONSIVE ── */
+@media(max-width:640px){
+  .charts-2col{grid-template-columns:1fr}
+  .cmp-grid{grid-template-columns:1fr}
+  .cmp-result-grid{grid-template-columns:1fr}
+  .header-stats{display:none}
+}
+</style>
+</head>
+<body>
+ 
+<header>
+  <div>
+    <h1>Pharmaceutical Raw Material Demand Predictor</h1>
+    <p>ML-powered supply chain intelligence · Indian Pharmaceutical Market · Random Forest Model</p>
+  </div>
+  <div class="header-stats" id="header-stats">
+    <div class="hstat"><div class="num" id="hs-meds">—</div><div class="lbl">Medicines</div></div>
+    <div class="hstat"><div class="num" id="hs-chem">—</div><div class="lbl">Chemicals</div></div>
+    <div class="hstat"><div class="num" id="hs-mfr">—</div><div class="lbl">Manufacturers</div></div>
+    <div class="hstat"><div class="num" id="hs-risk">—</div><div class="lbl">High Risk</div></div>
+  </div>
+</header>
+ 
+<nav>
+  <button class="active" onclick="showPage('predict',this)">Predict Demand</button>
+  <button onclick="showPage('medicine',this)">Medicine Lookup</button>
+  <button onclick="showPage('ingredient',this)">Ingredient Lookup</button>
+  <button onclick="showPage('compare',this)">Compare</button>
+  <button onclick="showPage('shortage',this)">Shortage Risk</button>
+  <button onclick="showPage('dashboard',this)">Dashboard</button>
+</nav>
+ 
+<div class="container">
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 1 — PREDICT                                        -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page active" id="page-predict">
+  <div class="card">
+    <h2>Predict Raw Material Demand</h2>
+    <p class="card-desc">Enter a chemical ingredient name. The Random Forest model predicts how many medicines in India use it as a raw material, and assesses its shortage risk based on real market data.</p>
+    <div class="row">
+      <div class="ac-wrap">
+        <input type="text" id="chemical" placeholder="Type chemical name e.g. aceclofenac, cefixime, amoxycillin"
+               oninput="fetchSug(this.value)" onkeydown="handleKey(event)" autocomplete="off">
+        <div id="suggestions"></div>
+      </div>
+      <button class="btn" id="pred-btn" onclick="predict()">Predict</button>
+    </div>
+    <div id="pred-card" class="pred-card">
+      <div class="pred-main" id="pc-score"></div>
+      <div class="pred-sub"  id="pc-sub"></div>
+      <div class="pred-meta" id="pc-meta"></div>
+      <div class="insights-list" id="pc-insights"></div>
+    </div>
+    <p class="hint">Try: aceclofenac · cefixime · amoxycillin · azithromycin · diclofenac · domperidone · glimepiride · ofloxacin</p>
+  </div>
+ 
+  <div class="card">
+    <h2>Recent Search History</h2>
+    <div id="history-list"><p style="color:#bbb;font-size:13px">No searches yet — predict a chemical above.</p></div>
+  </div>
+</div>
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 2 — MEDICINE LOOKUP                                -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-medicine">
+  <div class="card">
+    <h2>Medicine → Full Ingredient Breakdown</h2>
+    <p class="card-desc">Search any medicine brand name. The system returns every chemical ingredient with its exact strength (dosage), manufacturer, price, therapeutic class, pack details, and shortage risk assessment.</p>
+    <div class="row">
+      <input type="text" id="med-input" placeholder="e.g. Augmentin, Crocin, Dolo, Azithral, Combiflam"
+             onkeydown="if(event.key==='Enter')medicineLookup()">
+      <button class="btn" id="med-btn" onclick="medicineLookup()">Search</button>
+    </div>
+    <div id="med-result" style="margin-top:14px"></div>
+    <p class="hint">Click any ingredient chip to instantly predict its demand · Supports partial name search</p>
+  </div>
+</div>
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 3 — INGREDIENT LOOKUP                              -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-ingredient">
+  <div class="card">
+    <h2>Ingredient → All Medicines Containing It</h2>
+    <p class="card-desc">Enter any chemical ingredient to see all medicines that contain it, along with the ingredient's overall shortage risk, number of manufacturers, and average price across all products.</p>
+    <div class="row">
+      <input type="text" id="ing-input" placeholder="e.g. Paracetamol, Amoxycillin, Ibuprofen, Metformin"
+             onkeydown="if(event.key==='Enter')ingredientLookup()">
+      <button class="btn" id="ing-btn" onclick="ingredientLookup()">Search</button>
+    </div>
+    <div id="ing-result" style="margin-top:14px"></div>
+    <p class="hint">Click any medicine card to view its full ingredient breakdown</p>
+  </div>
+</div>
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 4 — COMPARE                                        -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-compare">
+  <div class="card">
+    <h2>Compare Two Chemicals Side by Side</h2>
+    <p class="card-desc">Compare predicted demand, shortage risk, confidence score, and manufacturer count for any two chemical ingredients simultaneously.</p>
+    <div class="cmp-grid">
+      <input type="text" id="chem1" placeholder="Chemical 1 e.g. aceclofenac" onkeydown="if(event.key==='Enter')compare()">
+      <div class="vs">VS</div>
+      <input type="text" id="chem2" placeholder="Chemical 2 e.g. cefixime" onkeydown="if(event.key==='Enter')compare()">
+    </div>
+    <div style="margin-top:12px"><button class="btn" onclick="compare()">Compare Now</button></div>
+    <div id="cmp-result" style="margin-top:16px"></div>
+  </div>
+</div>
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 5 — SHORTAGE RISK                                  -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-shortage">
+  <div class="card">
+    <h2>Shortage Risk Report — 1586 Raw Materials</h2>
+    <p class="card-desc">Real-world risk analysis based on total market usage, discontinued medicine rate, and manufacturer concentration. High Risk means the chemical is widely used AND has a growing number of discontinued medicines, creating supply chain vulnerability.</p>
+    <div id="shortage-table"><p style="color:#aaa;font-size:13px">Loading risk data...</p></div>
+  </div>
+</div>
+ 
+<!-- ══════════════════════════════════════════════════════ -->
+<!-- TAB 6 — DASHBOARD                                      -->
+<!-- ══════════════════════════════════════════════════════ -->
+<div class="page" id="page-dashboard">
+ 
+  <div class="kpi-row" id="kpi-row">
+    <div class="kpi"><div class="kval" id="kpi-total">—</div><div class="klbl">Total Medicines</div></div>
+    <div class="kpi green"><div class="kval" id="kpi-active">—</div><div class="klbl">Active Medicines</div></div>
+    <div class="kpi red"><div class="kval" id="kpi-disc">—</div><div class="klbl">Discontinued</div></div>
+    <div class="kpi amber"><div class="kval" id="kpi-mfr">—</div><div class="klbl">Manufacturers</div></div>
+    <div class="kpi purple"><div class="kval" id="kpi-chem">—</div><div class="klbl">Unique Chemicals</div></div>
+    <div class="kpi red"><div class="kval" id="kpi-risk">—</div><div class="klbl">High Risk Chemicals</div></div>
+  </div>
+ 
+  <div class="card">
+    <h2>Top Raw Materials by Demand</h2>
+    <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+  </div>
+ 
+  <div class="charts-2col">
+    <div class="card">
+      <h2>Medicines by Therapeutic Class</h2>
+      <div class="chart-wrap-sm"><canvas id="classChart"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>Medicines by Dosage Form</h2>
+      <div class="chart-wrap-sm"><canvas id="formChart"></canvas></div>
+    </div>
+  </div>
+ 
+  <div class="card">
+    <h2>Top 5 Highest vs Lowest Demand</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px" id="top-bottom-grid">
+      <p style="color:#aaa;font-size:13px">Loading...</p>
+    </div>
+  </div>
+ 
+  <div class="card">
+    <h2>Full Rankings Table</h2>
+    <table class="risk-table" id="full-table">
+      <thead><tr>
+        <th>#</th><th>Chemical</th><th>Demand</th><th>Level</th>
+        <th>Shortage Risk</th><th>Confidence</th><th>Manufacturers</th>
+      </tr></thead>
+      <tbody id="full-tbody"><tr><td colspan="7" style="text-align:center;color:#aaa;padding:20px">Loading...</td></tr></tbody>
+    </table>
+  </div>
+ 
+</div><!-- /page-dashboard -->
+ 
+</div><!-- /container -->
+ 
+<script>
+const API = "http://127.0.0.1:5000";
+let history = [];
+let dashLoaded = false;
+let shortageLoaded = false;
+ 
+// ══════════════════════════════════════════════════════════
+// NAV
+// ══════════════════════════════════════════════════════════
+function showPage(name, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='dashboard' && !dashLoaded){ loadDashboard(); dashLoaded=true; }
+  if(name==='shortage'  && !shortageLoaded){ loadShortage(); shortageLoaded=true; }
+}
+ 
+// ══════════════════════════════════════════════════════════
+// HEADER STATS
+// ══════════════════════════════════════════════════════════
+fetch(`${API}/dashboard-stats`).then(r=>r.json()).then(d=>{
+  document.getElementById('hs-meds').textContent = fmtNum(d.total_medicines);
+  document.getElementById('hs-chem').textContent = fmtNum(d.unique_chemicals);
+  document.getElementById('hs-mfr').textContent  = fmtNum(d.manufacturers);
+  document.getElementById('hs-risk').textContent  = fmtNum(d.high_risk_chemicals);
+}).catch(()=>{});
+ 
+// ══════════════════════════════════════════════════════════
+// AUTOCOMPLETE
+// ══════════════════════════════════════════════════════════
+let dTimer;
+function fetchSug(val){
+  clearTimeout(dTimer);
+  const box=document.getElementById('suggestions');
+  if(!val||val.length<2){box.style.display='none';return;}
+  dTimer=setTimeout(()=>{
+    fetch(`${API}/search?q=${encodeURIComponent(val)}`)
+      .then(r=>r.json()).then(list=>{
+        if(!list.length){box.style.display='none';return;}
+        box.innerHTML=list.map(c=>`<div onclick="selSug('${c}')">${c}</div>`).join('');
+        box.style.display='block';
+      }).catch(()=>{box.style.display='none';});
+  },180);
+}
+function selSug(name){
+  document.getElementById('chemical').value=name;
+  document.getElementById('suggestions').style.display='none';
+  predict();
+}
+function handleKey(e){
+  if(e.key==='Enter'){document.getElementById('suggestions').style.display='none';predict();}
+  if(e.key==='Escape') document.getElementById('suggestions').style.display='none';
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.ac-wrap')) document.getElementById('suggestions').style.display='none';
+});
+ 
+// ══════════════════════════════════════════════════════════
+// PREDICT
+// ══════════════════════════════════════════════════════════
+function predict(){
+  const chem = document.getElementById('chemical').value.trim();
+  const btn  = document.getElementById('pred-btn');
+  const card = document.getElementById('pred-card');
+  if(!chem){ showRbox('pred-rbox','Please type a chemical name.','error'); return; }
+ 
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Predicting...';
+  card.style.display='none';
+ 
+  fetch(`${API}/predict`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chemical:chem})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error){ showInlineErr(d.error); return; }
+ 
+    // Main score
+    document.getElementById('pc-score').innerHTML =
+      `${d.predicted_demand.toLocaleString()} medicines
+       <span class="badge ${demBadge(d.demand_level)}">${d.demand_level} Demand</span>
+       <span class="badge ${rskBadge(d.shortage_risk)}">${d.shortage_risk}</span>`;
+    document.getElementById('pc-sub').textContent =
+      `use "${d.chemical}" as a raw material in the Indian pharmaceutical market`;
+ 
+    // Meta boxes
+    document.getElementById('pc-meta').innerHTML = `
+      <div class="pmeta">
+        <div class="pval">${d.confidence}%</div>
+        <div class="plbl">Model Confidence</div>
+        <div class="conf-bar"><div class="conf-fill" style="width:${d.confidence}%"></div></div>
+      </div>
+      <div class="pmeta">
+        <div class="pval">${d.manufacturer_count.toLocaleString()}</div>
+        <div class="plbl">Manufacturers</div>
+      </div>
+      <div class="pmeta">
+        <div class="pval">₹${d.avg_price}</div>
+        <div class="plbl">Avg Medicine Price</div>
+      </div>
+      <div class="pmeta">
+        <div class="pval">${d.discontinued_rate}%</div>
+        <div class="plbl">Discontinued Rate</div>
+      </div>`;
+ 
+    // Insights
+    document.getElementById('pc-insights').innerHTML = d.insights.length
+      ? d.insights.map(i=>`<div class="insight-item">${i}</div>`).join('')
+      : '';
+ 
+    card.style.display='block';
+    addHistory(d.chemical, d.predicted_demand, d.demand_level, d.shortage_risk);
+  })
+  .catch(()=>showInlineErr('Cannot connect to backend. Run: python app.py'))
+  .finally(()=>{ btn.disabled=false; btn.textContent='Predict'; });
+}
+ 
+function showInlineErr(msg){
+  let box=document.getElementById('pred-err');
+  if(!box){box=document.createElement('div');box.id='pred-err';box.style.marginTop='10px';document.getElementById('pred-btn').parentElement.parentElement.appendChild(box);}
+  box.className='rbox error'; box.textContent=msg; box.style.display='block';
+}
+ 
+// ══════════════════════════════════════════════════════════
+// HISTORY
+// ══════════════════════════════════════════════════════════
+function addHistory(name,score,level,risk){
+  history=history.filter(h=>h.name!==name);
+  history.unshift({name,score,level,risk});
+  if(history.length>8) history.pop();
+  renderHistory();
+}
+function renderHistory(){
+  const el=document.getElementById('history-list');
+  if(!history.length){el.innerHTML='<p style="color:#bbb;font-size:13px">No searches yet.</p>';return;}
+  el.innerHTML=history.map(h=>`
+    <div class="hist-row">
+      <span class="hist-chem" onclick="document.getElementById('chemical').value='${h.name}';predict()">${h.name}</span>
+      <span>
+        <span style="font-size:13px;color:#555">${h.score.toLocaleString()}</span>
+        <span class="badge ${demBadge(h.level)}">${h.level}</span>
+        <span class="badge ${rskBadge(h.risk)}">${h.risk}</span>
+      </span>
+    </div>`).join('');
+}
+ 
+// ══════════════════════════════════════════════════════════
+// MEDICINE LOOKUP
+// ══════════════════════════════════════════════════════════
+function medicineLookup(){
+  const medicine=document.getElementById('med-input').value.trim();
+  const result=document.getElementById('med-result');
+  const btn=document.getElementById('med-btn');
+  if(!medicine){result.innerHTML=errDiv('Please enter a medicine name.');return;}
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Searching...';
+  result.innerHTML='';
+ 
+  fetch(`${API}/medicine-lookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({medicine})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error){result.innerHTML=errDiv(d.error);return;}
+    result.innerHTML=`
+      <div class="info-strip">Found ${d.count} medicine(s) matching "${d.query}"</div>
+      ${d.results.map(r=>`
+        <div class="med-card">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:6px">
+            <div>
+              <h4>${r.medicine} ${r.is_discontinued?'<span class="disc-tag">Discontinued</span>':''}</h4>
+              <div class="mfr">${r.manufacturer}</div>
+            </div>
+            <div style="text-align:right">
+              <span class="badge ${rskBadge(r.shortage_risk)}">${r.shortage_risk}</span>
+              <div style="font-size:11px;color:#888;margin-top:3px">Confidence: ${r.confidence}%</div>
+            </div>
+          </div>
+          <div class="med-meta-row">
+            <div class="mmeta">Price <span>₹${r.price_inr}</span></div>
+            <div class="mmeta">Form <span>${r.dosage_form}</span></div>
+            <div class="mmeta">Class <span>${r.therapeutic_class}</span></div>
+            <div class="mmeta">Pack <span>${r.pack}</span></div>
+            <div class="mmeta">Ingredients <span>${r.num_ingredients}</span></div>
+          </div>
+          <div class="ing-section">
+            <h5>Active Ingredients (with strength):</h5>
+            <div class="ing-list">
+              ${r.ingredients.map(ing=>`
+                <button class="ing-chip" onclick="goPredict('${ing.name.toLowerCase()}')">
+                  ${ing.name}<span class="strength">${ing.strength}</span>
+                </button>`).join('')}
+            </div>
+          </div>
+        </div>`).join('')}`;
+  })
+  .catch(()=>{ result.innerHTML=errDiv('Cannot connect to backend.'); })
+  .finally(()=>{ btn.disabled=false; btn.textContent='Search'; });
+}
+ 
+// ══════════════════════════════════════════════════════════
+// INGREDIENT LOOKUP
+// ══════════════════════════════════════════════════════════
+function ingredientLookup(){
+  const ingredient=document.getElementById('ing-input').value.trim();
+  const result=document.getElementById('ing-result');
+  const btn=document.getElementById('ing-btn');
+  if(!ingredient){result.innerHTML=errDiv('Please enter an ingredient name.');return;}
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span>Searching...';
+  result.innerHTML='';
+ 
+  fetch(`${API}/ingredient-lookup`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ingredient})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error){result.innerHTML=errDiv(d.error);return;}
+    result.innerHTML=`
+      <div class="info-strip">
+        "${d.ingredient}" found in <strong>${d.total.toLocaleString()}</strong> medicines
+        ${d.total>30?'(showing first 30)':''}
+        &nbsp;·&nbsp; Shortage Risk: <strong>${d.shortage_risk}</strong>
+        &nbsp;·&nbsp; ${d.manufacturer_count} manufacturers
+        &nbsp;·&nbsp; Avg price ₹${d.avg_price}
+      </div>
+      <div class="med-list-grid">
+        ${d.medicines.map(m=>`
+          <div class="med-item" onclick="goMedicineTab('${m.brand_name}')">
+            <div class="mi-name">${m.brand_name}</div>
+            <div class="mi-sub">${m.manufacturer||''}</div>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px">
+              <span class="mi-price">₹${typeof m.price_inr==='number'?m.price_inr.toFixed(0):m.price_inr}</span>
+              ${m.is_discontinued?'<span class="disc-tag">Discontinued</span>':'<span style="font-size:11px;color:#888">${m.dosage_form}</span>'}
+            </div>
+          </div>`).join('')}
+      </div>`;
+  })
+  .catch(()=>{ result.innerHTML=errDiv('Cannot connect to backend.'); })
+  .finally(()=>{ btn.disabled=false; btn.textContent='Search'; });
+}
+ 
+// ══════════════════════════════════════════════════════════
+// COMPARE
+// ══════════════════════════════════════════════════════════
+function compare(){
+  const c1=document.getElementById('chem1').value.trim();
+  const c2=document.getElementById('chem2').value.trim();
+  const box=document.getElementById('cmp-result');
+  if(!c1||!c2){box.innerHTML=errDiv('Enter both chemical names.');return;}
+  box.innerHTML='<p style="color:#999;font-size:13px"><span class="spin"></span>Comparing...</p>';
+ 
+  fetch(`${API}/compare`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chemical1:c1,chemical2:c2})})
+  .then(r=>r.json())
+  .then(d=>{
+    if(d.error){box.innerHTML=errDiv(d.error);return;}
+    const max=Math.max(d.chemical1.demand,d.chemical2.demand);
+    const w1=Math.round(d.chemical1.demand/max*100);
+    const w2=Math.round(d.chemical2.demand/max*100);
+    const isW1=d.higher_demand===d.chemical1.name;
+    box.innerHTML=`
+      <div class="cmp-result-grid">
+        <div class="cmp-side ${isW1?'winner':''}">
+          <div class="cmp-name">${d.chemical1.name} ${isW1?'🏆':''}</div>
+          <div class="cmp-score">${d.chemical1.demand.toLocaleString()}</div>
+          <div class="cmp-bar-track"><div class="cmp-bar-fill" style="width:${w1}%;background:#185FA5">${d.chemical1.demand}</div></div>
+          <span class="badge ${demBadge(d.chemical1.level)}">${d.chemical1.level} Demand</span>
+          <span class="badge ${rskBadge(d.chemical1.shortage_risk)}">${d.chemical1.shortage_risk}</span>
+          <div style="font-size:12px;color:#666;margin-top:8px">Confidence: ${d.chemical1.confidence}%</div>
+          <div style="font-size:12px;color:#666">${d.chemical1.manufacturer_count} manufacturers</div>
+        </div>
+        <div class="cmp-side ${!isW1?'winner':''}">
+          <div class="cmp-name">${d.chemical2.name} ${!isW1?'🏆':''}</div>
+          <div class="cmp-score">${d.chemical2.demand.toLocaleString()}</div>
+          <div class="cmp-bar-track"><div class="cmp-bar-fill" style="width:${w2}%;background:#E24B4A">${d.chemical2.demand}</div></div>
+          <span class="badge ${demBadge(d.chemical2.level)}">${d.chemical2.level} Demand</span>
+          <span class="badge ${rskBadge(d.chemical2.shortage_risk)}">${d.chemical2.shortage_risk}</span>
+          <div style="font-size:12px;color:#666;margin-top:8px">Confidence: ${d.chemical2.confidence}%</div>
+          <div style="font-size:12px;color:#666">${d.chemical2.manufacturer_count} manufacturers</div>
+        </div>
+      </div>
+      <div class="winner-banner">Higher raw material demand: <strong>${d.higher_demand}</strong> needs priority procurement</div>`;
+  })
+  .catch(()=>{ box.innerHTML=errDiv('Cannot connect to backend.'); });
+}
+ 
+// ══════════════════════════════════════════════════════════
+// SHORTAGE RISK
+// ══════════════════════════════════════════════════════════
+function loadShortage(){
+  fetch(`${API}/shortage-risk`)
+  .then(r=>r.json())
+  .then(data=>{
+    const tbody = data.map((r,i)=>`
+      <tr>
+        <td style="font-weight:700;color:#185FA5">${i+1}</td>
+        <td style="font-weight:600">${r.chemical}</td>
+        <td>${r.total_medicines.toLocaleString()}</td>
+        <td>${r.discontinued_count} <span style="color:#888;font-size:11px">(${r.discontinued_rate}%)</span></td>
+        <td>${r.manufacturer_count.toLocaleString()}</td>
+        <td>₹${r.avg_price}</td>
+        <td><span class="badge ${rskBadge(r.shortage_risk)}">${r.shortage_risk}</span></td>
+        <td>
+          <div style="font-size:12px;font-weight:600">${r.confidence}%</div>
+          <div class="conf-bar" style="width:80px"><div class="conf-fill" style="width:${r.confidence}%"></div></div>
+        </td>
+      </tr>`).join('');
+    document.getElementById('shortage-table').innerHTML=`
+      <table class="risk-table">
+        <thead><tr>
+          <th>#</th><th>Chemical</th><th>Total Medicines</th>
+          <th>Discontinued</th><th>Manufacturers</th>
+          <th>Avg Price</th><th>Shortage Risk</th><th>Confidence</th>
+        </tr></thead>
+        <tbody>${tbody}</tbody>
+      </table>`;
+  })
+  .catch(()=>{ document.getElementById('shortage-table').innerHTML=errDiv('Cannot connect to backend.'); });
+}
+ 
+// ══════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════
+function loadDashboard(){
+  // KPIs
+  fetch(`${API}/dashboard-stats`).then(r=>r.json()).then(d=>{
+    document.getElementById('kpi-total').textContent  = fmtNum(d.total_medicines);
+    document.getElementById('kpi-active').textContent = fmtNum(d.active_medicines);
+    document.getElementById('kpi-disc').textContent   = fmtNum(d.discontinued);
+    document.getElementById('kpi-mfr').textContent    = fmtNum(d.manufacturers);
+    document.getElementById('kpi-chem').textContent   = fmtNum(d.unique_chemicals);
+    document.getElementById('kpi-risk').textContent   = fmtNum(d.high_risk_chemicals);
+ 
+    // Therapeutic class chart
+    new Chart(document.getElementById('classChart'),{
+      type:'doughnut',
+      data:{
+        labels:Object.keys(d.by_therapeutic_class),
+        datasets:[{data:Object.values(d.by_therapeutic_class),
+          backgroundColor:['#185FA5','#1D9E75','#E8A020','#E24B4A','#7F77DD','#0d3b6e','#378ADD','#854F0B'],
+          borderWidth:1}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{font:{size:11}}}}}
+    });
+ 
+    // Dosage form chart
+    new Chart(document.getElementById('formChart'),{
+      type:'bar',
+      data:{
+        labels:Object.keys(d.by_dosage_form),
+        datasets:[{label:'Medicines',data:Object.values(d.by_dosage_form),
+          backgroundColor:'#378ADD',borderRadius:4}]
+      },
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+        scales:{y:{grid:{color:'#f0f0f0'}}}}
+    });
+  }).catch(()=>{});
+ 
+  // Top materials bar chart + full table
+  fetch(`${API}/top-materials`).then(r=>r.json()).then(data=>{
+    new Chart(document.getElementById('barChart'),{
+      type:'bar',
+      data:{
+        labels:data.map(d=>d.chemical),
+        datasets:[{
+          label:'Demand Count',
+          data:data.map(d=>d.demand_count),
+          backgroundColor:data.map((_,i)=>`rgba(24,95,165,${1-i*0.07})`),
+          borderRadius:4
+        }]
+      },
+      options:{
+        indexAxis:'y',responsive:true,maintainAspectRatio:false,
+        plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>` ${ctx.parsed.x.toLocaleString()} medicines`}}},
+        scales:{x:{grid:{color:'#f0f0f0'}},y:{ticks:{font:{size:12}}}}
+      }
+    });
+ 
+    // Full table
+    const max=data[0].demand_count;
+    document.getElementById('full-tbody').innerHTML=data.map((d,i)=>`
+      <tr>
+        <td style="font-weight:700;color:#185FA5">${i+1}</td>
+        <td style="font-weight:600">${d.chemical}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="background:#e8edf2;border-radius:4px;height:7px;width:${Math.round(d.demand_count/max*120)}px;min-width:4px"><div style="background:#185FA5;height:100%;border-radius:4px;width:100%"></div></div>
+            ${d.demand_count.toLocaleString()}
+          </div>
+        </td>
+        <td><span class="badge ${demBadge(demLevel(d.demand_count))}">${demLevel(d.demand_count)}</span></td>
+        <td><span class="badge ${rskBadge(d.shortage_risk||'Unknown')}">${d.shortage_risk||'—'}</span></td>
+        <td>
+          <div style="font-size:12px;font-weight:600">${d.confidence||'—'}%</div>
+          ${d.confidence?`<div class="conf-bar" style="width:70px"><div class="conf-fill" style="width:${d.confidence}%"></div></div>`:''}
+        </td>
+        <td style="font-size:12px;color:#555">${d.manufacturer_count?d.manufacturer_count.toLocaleString():'—'}</td>
+      </tr>`).join('');
+  }).catch(()=>{});
+ 
+  // Top/Bottom
+  fetch(`${API}/top-bottom`).then(r=>r.json()).then(d=>{
+    document.getElementById('top-bottom-grid').innerHTML=`
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#A32D2D;margin-bottom:10px">Top 5 — Highest Demand</div>
+        <table class="risk-table">
+          <thead><tr><th>#</th><th>Chemical</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>${d.top5.map((r,i)=>`<tr>
+            <td style="font-weight:700;color:#A32D2D">${i+1}</td>
+            <td>${r.chemical}</td>
+            <td style="text-align:right;font-weight:700">${r.demand_count.toLocaleString()}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#3B6D11;margin-bottom:10px">Bottom 5 — Lowest Demand</div>
+        <table class="risk-table">
+          <thead><tr><th>#</th><th>Chemical</th><th style="text-align:right">Count</th></tr></thead>
+          <tbody>${d.bottom5.map((r,i)=>`<tr>
+            <td style="font-weight:700;color:#3B6D11">${i+1}</td>
+            <td>${r.chemical}</td>
+            <td style="text-align:right;font-weight:700">${r.demand_count.toLocaleString()}</td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }).catch(()=>{});
+}
+ 
+// ══════════════════════════════════════════════════════════
+// CROSS-PAGE NAVIGATION
+// ══════════════════════════════════════════════════════════
+function goPredict(chem){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-predict').classList.add('active');
+  document.querySelector('nav button:first-child').classList.add('active');
+  document.getElementById('chemical').value=chem;
+  predict();
+}
+function goMedicineTab(med){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-medicine').classList.add('active');
+  document.querySelectorAll('nav button')[1].classList.add('active');
+  document.getElementById('med-input').value=med;
+  medicineLookup();
+}
+ 
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+function demBadge(l){ return l==='Very High'?'bvh':l==='High'?'bh':l==='Medium'?'bm':'bl'; }
+function rskBadge(r){ return r==='High Risk'?'bhr':r==='Medium Risk'?'bmr':'blr'; }
+function demLevel(n){ return n>=5000?'Very High':n>=2500?'High':n>=1000?'Medium':'Low'; }
+function fmtNum(n){ return n>=1000?(n/1000).toFixed(1)+'K':n; }
+function errDiv(msg){ return `<div class="rbox error" style="display:block;border-radius:8px">${msg}</div>`; }
+function showRbox(id,msg,type){ const b=document.getElementById(id); if(!b)return; b.className='rbox '+type; b.textContent=msg; b.style.display='block'; }
+</script>
+</body>
+</html>
